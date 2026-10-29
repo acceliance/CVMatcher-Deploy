@@ -1,0 +1,14 @@
+# Hooks de commit (spec §5 et §7) : `pre-commit install` une fois par poste.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+  - repo: local
+    hooks:
+      - id: cvmatcher-deploy-checks
+        name: variables internes, fins de ligne, fichiers sensibles
+        entry: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-repo.ps1
+        language: system
+        pass_filenames: false
+        always_run: true

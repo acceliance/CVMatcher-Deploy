@@ -1,0 +1,202 @@
+# CVMatcher — stack de production (spec de déploiement §3). Images tirées de Harbor uniquement : aucun build ici.
+# Copiée dans /opt/cvmatcher par kit/ubuntu/08-stage-app.sh ; variables dans /opt/cvmatcher/.env (hors git).
+#
+# Profils optionnels :
+#   federated        oauth2-proxy (AUTH_MODE=office365 | google)
+#   vectors-qdrant   index vectoriel Qdrant (VECTOR_BACKEND=qdrant, ADR-07)
+#   files-seaweedfs  stockage objet S3 local (FILE_STORE=s3, ADR-23)
+#   local-llm        LLM local compatible OpenAI (Ollama), pour les clients sans sortie réseau IA
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "20m", max-file: "5" }
+
+x-hardening: &hardening
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: [ALL]
+  logging: *logging
+  restart: unless-stopped
+
+x-app-env: &app-env
+  ENVIRONMENT: ${ENVIRONMENT:-production}
+  PUBLIC_URL: ${PUBLIC_URL:?PUBLIC_URL obligatoire (https://<fqdn>)}
+  INSTANCE_FQDN: ${INSTANCE_FQDN:?INSTANCE_FQDN obligatoire}
+  NEO4J_URI: bolt://neo4j:7687
+  NEO4J_USER: neo4j
+  NEO4J_PASSWORD: ${NEO4J_PASSWORD:?NEO4J_PASSWORD obligatoire}
+  SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET obligatoire}
+  # première clé : chiffrement ; suivantes : déchiffrement seul pendant une rotation (§4.6)
+  DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?DATA_ENCRYPTION_KEY obligatoire}${DATA_ENCRYPTION_KEY_PREVIOUS:+,${DATA_ENCRYPTION_KEY_PREVIOUS}}
+  SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-8}
+  COOKIE_SECURE: "true"
+  AUTH_MODE: ${AUTH_MODE:-standalone}
+  OIDC_GROUP_ROLES: ${OIDC_GROUP_ROLES:-}
+  DOCPROC_URL: http://cvmatcher-docproc:8000
+  AI_EGRESS_ALLOWED: ${AI_EGRESS_ALLOWED:-true}
+  AI_MAX_RETRIES: ${AI_MAX_RETRIES:-2}
+  UPLOAD_MAX_MB: ${UPLOAD_MAX_MB:-10}
+  UPLOAD_MAX_FILES: ${UPLOAD_MAX_FILES:-200}
+  STORAGE_QUOTA_GB: ${FILE_QUOTA_GB:-200}
+  THEME_ASSET_HOSTS: ${THEME_ASSET_HOSTS:-}
+  THEME_EXTRACTION_ALLOWED: ${THEME_EXTRACTION_ALLOWED:-true}
+  FILE_STORE: ${FILE_STORE:-local}
+  S3_ENDPOINT: ${S3_ENDPOINT:-}
+  S3_BUCKET: ${S3_BUCKET:-}
+  S3_REGION: ${S3_REGION:-us-east-1}
+  S3_ACCESS_KEY: ${S3_ACCESS_KEY:-}
+  S3_SECRET_KEY: ${S3_SECRET_KEY:-}
+  VECTOR_BACKEND: ${VECTOR_BACKEND:-neo4j}
+  QDRANT_URL: http://qdrant:6333
+  QDRANT_API_KEY: ${QDRANT_API_KEY:-}
+  MCP_ENABLED: ${MCP_ENABLED:-}
+  MCP_WRITES: ${MCP_WRITES:-false}
+  MCP_ALLOWED_HOSTS: ${MCP_ALLOWED_HOSTS:-}
+  MCP_ALLOWED_ORIGINS: ${MCP_ALLOWED_ORIGINS:-}
+  A2A_ENABLED: ${A2A_ENABLED:-}
+  A2A_PUBLIC_URL: ${A2A_PUBLIC_URL:-}
+  A2A_TASK_TIMEOUT: ${A2A_TASK_TIMEOUT:-240}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  # Variable interne Acceliance : volontairement absente de .env.example (§3.1.1)
+  JSON_VIEW_ENABLED: ${JSON_VIEW_ENABLED:-false}
+
+services:
+  neo4j:
+    image: neo4j:5.26.2-community
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD obligatoire}
+      NEO4J_server_memory_heap_max__size: ${NEO4J_HEAP:-2G}
+      NEO4J_server_memory_pagecache_size: ${NEO4J_PAGECACHE:-2G}
+      NEO4J_server_bolt_listen__address: 0.0.0.0:7687
+      NEO4J_server_http_enabled: "false"
+      NEO4J_PLUGINS: "[]"
+    volumes: [neo4j-data:/data, neo4j-logs:/logs]
+    ports: ["127.0.0.1:7687:7687"]   # tunnel SSH uniquement ; Browser jamais publié
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${NEO4J_AUTH#neo4j/}\" 'RETURN 1' >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+    logging: *logging
+    restart: unless-stopped
+
+  cvmatcher-docproc:
+    image: ${CVMATCHER_IMAGE_PREFIX:-harbor.acceliance.fr/cvmatcher}/docproc:${TAG:?TAG obligatoire}
+    networks: [docproc]              # réseau interne SANS sortie (ADR-10)
+    read_only: true
+    tmpfs: [/tmp]
+    cpus: ${OCR_CPUS:-4}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=4).status==200 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    <<: *hardening
+
+  cvmatcher-api:
+    image: ${CVMATCHER_IMAGE_PREFIX:-harbor.acceliance.fr/cvmatcher}/app:${TAG:?TAG obligatoire}
+    environment: *app-env
+    volumes: [app-data:/data]
+    depends_on:
+      neo4j: { condition: service_healthy }
+      cvmatcher-docproc: { condition: service_healthy }
+    networks: [backend, docproc]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health',timeout=4).status==200 else 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    <<: *hardening
+
+  cvmatcher-worker:
+    image: ${CVMATCHER_IMAGE_PREFIX:-harbor.acceliance.fr/cvmatcher}/app:${TAG:?TAG obligatoire}
+    # appel explicite de main() : `python -m` ne fonctionne pas sur le module compilé par Nuitka
+    command: ["python", "-c", "from cvmatcher.worker import main; main()"]
+    environment: *app-env
+    volumes: [app-data:/data]
+    depends_on:
+      cvmatcher-api: { condition: service_healthy }
+    networks: [backend, docproc]
+    <<: *hardening
+
+  cvmatcher-web:
+    image: ${CVMATCHER_IMAGE_PREFIX:-harbor.acceliance.fr/cvmatcher}/web:${TAG:?TAG obligatoire}
+    environment:
+      AUTH_MODE: ${AUTH_MODE:-standalone}
+      THEME_ASSET_HOSTS: ${THEME_ASSET_HOSTS:-}
+      METRICS_ALLOW: ${METRICS_ALLOWED_IPS:-127.0.0.1}
+    ports: ["127.0.0.1:8090:80"]     # seul port publié : Apache TLS devant
+    depends_on:
+      cvmatcher-api: { condition: service_healthy }
+    networks: [backend]
+    logging: *logging
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+
+  oauth2-proxy:
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.7.1
+    profiles: [federated]
+    environment:
+      OAUTH2_PROXY_PROVIDER: ${OAUTH2_PROVIDER:-oidc}
+      OAUTH2_PROXY_OIDC_ISSUER_URL: ${OAUTH2_OIDC_ISSUER_URL:-}
+      OAUTH2_PROXY_CLIENT_ID: ${OAUTH2_CLIENT_ID:-}
+      OAUTH2_PROXY_CLIENT_SECRET: ${OAUTH2_CLIENT_SECRET:-}
+      OAUTH2_PROXY_COOKIE_SECRET: ${OAUTH2_COOKIE_SECRET:-}
+      OAUTH2_PROXY_EMAIL_DOMAINS: ${OAUTH2_ALLOWED_DOMAINS:-}
+      OAUTH2_PROXY_REDIRECT_URL: ${OAUTH2_REDIRECT_URL:-}
+      OAUTH2_PROXY_HTTP_ADDRESS: 0.0.0.0:4180
+      OAUTH2_PROXY_REVERSE_PROXY: "true"
+      OAUTH2_PROXY_SET_XAUTHREQUEST: "true"
+      OAUTH2_PROXY_COOKIE_SECURE: "true"
+      OAUTH2_PROXY_COOKIE_SAMESITE: lax
+      OAUTH2_PROXY_SCOPE: ${OAUTH2_SCOPE:-openid email profile}
+      OAUTH2_PROXY_OIDC_GROUPS_CLAIM: ${OAUTH2_GROUPS_CLAIM:-groups}
+      OAUTH2_PROXY_SKIP_PROVIDER_BUTTON: "true"
+    networks: [backend]
+    <<: *hardening
+
+  qdrant:
+    image: qdrant/qdrant:v1.12.4
+    profiles: [vectors-qdrant]
+    environment:
+      QDRANT__SERVICE__API_KEY: ${QDRANT_API_KEY:-}   # obligatoire avec ce profil : contrôlé par lib/guards.ps1
+    volumes: [qdrant-data:/qdrant/storage]
+    networks: [backend]
+    logging: *logging
+    restart: unless-stopped
+
+  seaweedfs:
+    image: chrislusf/seaweedfs:3.80
+    profiles: [files-seaweedfs]
+    command: ["server", "-dir=/data", "-filer", "-s3", "-s3.config=/run/secrets/seaweedfs-s3.json"]
+    secrets: [seaweedfs-s3.json]
+    volumes: [seaweed-data:/data]
+    networks: [backend]
+    logging: *logging
+    restart: unless-stopped
+
+  local-llm:
+    image: ollama/ollama:0.4.7
+    profiles: [local-llm]
+    volumes: [ollama-data:/root/.ollama]
+    networks: [backend]
+    logging: *logging
+    restart: unless-stopped
+    # GPU : décommenter sur un hôte équipé (nvidia-container-toolkit)
+    # deploy: { resources: { reservations: { devices: [{ driver: nvidia, count: all, capabilities: [gpu] }] } } }
+
+secrets:
+  seaweedfs-s3.json:
+    file: ${SEAWEEDFS_S3_CONFIG:-./secrets/seaweedfs-s3.json}
+
+networks:
+  backend: {}
+  docproc: { internal: true }
+
+volumes:
+  neo4j-data: {}
+  neo4j-logs: {}
+  app-data: {}
+  qdrant-data: {}
+  seaweed-data: {}
+  ollama-data: {}

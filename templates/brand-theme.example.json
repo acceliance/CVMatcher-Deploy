@@ -1,0 +1,93 @@
+{
+  "$schema": "../brand-theme.schema.json",
+  "meta": {
+    "client": "Exemple Recrutement",
+    "themeVersion": "1.0",
+    "updatedAt": "2026-10-22T14:00:00Z",
+    "source": {
+      "method": "WEBSITE_EXTRACTION",
+      "url": "https://www.exemple-recrutement.fr/",
+      "extractedAt": "2026-10-22T13:45:00Z",
+      "extractor": "cvmatcher-brand-extractor 1.0",
+      "reviewedBy": "admin@exemple-recrutement.fr",
+      "confidence": { "colors": 0.9, "logo": 0.8, "typography": 0.7, "colorsDark": 0.3 },
+      "notes": "Pas de palette sombre sur le site : colorsDark dérivée automatiquement puis ajustée."
+    }
+  },
+  "brand": {
+    "name": "Exemple Recrutement",
+    "eyebrow": "CV Matcher",
+    "tagline": "Le bon talent, au bon moment.",
+    "website": "https://www.exemple-recrutement.fr/",
+    "logo": {
+      "primary": "/files/brand/logo.svg",
+      "primaryOnDark": "/files/brand/logo-blanc.svg",
+      "mark": "/files/brand/monogramme.svg",
+      "favicon": "/files/brand/favicon.ico",
+      "document": "/files/brand/logo-600.png"
+    }
+  },
+  "colors": {
+    "background": "#f7f8fa",
+    "surface": "#ffffff",
+    "surfaceAlt": "#eef1f5",
+    "text": "#1b2433",
+    "textMuted": "#5b6577",
+    "line": "#d9dee6",
+    "primary": "#0b5cab",
+    "primaryAlt": "#0a4a8a",
+    "onPrimary": "#ffffff",
+    "secondary": "#f28c28",
+    "focus": "#0b5cab",
+    "info": "#2f6fb3",
+    "success": "#1a7f45",
+    "warning": "#b26b00",
+    "danger": "#c62828"
+  },
+  "colorsDark": {
+    "background": "#11161f",
+    "surface": "#1a212d",
+    "text": "#e8ecf2",
+    "textMuted": "#a5afbf",
+    "line": "#2d3646",
+    "primary": "#5ea3e8",
+    "onPrimary": "#0b1220"
+  },
+  "typography": {
+    "heading": { "family": "Montserrat", "fallback": "Arial, sans-serif", "weights": [600, 700], "url": "https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&display=swap" },
+    "body": { "family": "Source Sans 3", "fallback": "Arial, sans-serif", "weights": [400, 600], "url": "https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@400;600&display=swap" },
+    "baseSize": "16px"
+  },
+  "shape": { "radius": "6px", "density": "STANDARD" },
+  "appreciation": {
+    "EXPERTISE_CONFIRMEE": { "background": "#6a3fb5", "text": "#ffffff" },
+    "TRES_BON_NIVEAU": { "background": "#1a7f45", "text": "#ffffff" },
+    "INTERMEDIAIRE": { "background": "#2f6fb3", "text": "#ffffff" },
+    "COMPETENCE_NON_DEMONTREE": { "background": "#c62828", "text": "#ffffff" }
+  },
+  "impact": {
+    "FORT": { "background": "#c62828", "text": "#ffffff" },
+    "MOYEN": { "background": "#f2a900", "text": "#1b2433" },
+    "FAIBLE": { "background": "#8da2bb", "text": "#1b2433" }
+  },
+  "charts": {
+    "series": ["#0b5cab", "#f28c28", "#5b6577"],
+    "grid": "#d9dee6",
+    "gaugeTrack": "#eef1f5"
+  },
+  "documents": {
+    "headingColor": "#0b5cab",
+    "accentColor": "#f28c28",
+    "tableHeaderBackground": "#0b5cab",
+    "tableHeaderText": "#ffffff",
+    "tableBorder": "#d9dee6",
+    "tableStripe": "#f7f8fa",
+    "fonts": {
+      "heading": { "family": "Montserrat", "fallback": "Arial" },
+      "body": { "family": "Source Sans 3", "fallback": "Calibri" }
+    }
+  },
+  "cssVariables": {
+    "header-height": "56px"
+  }
+}

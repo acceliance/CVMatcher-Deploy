@@ -1,0 +1,17 @@
+# Secrets et artefacts d'instance : jamais versionnés (spec §7)
+*.env
+!*.env.example
+*.lic
+*.pem
+*.key
+*secret*
+!**/*secret*.example
+seaweedfs-s3.json
+licensing/deliveries/
+backups/
+instances/*/branding/*.docx
+instances/*/branding/*.dotx
+__pycache__/
+*.pyc
+.vscode/
+.idea/

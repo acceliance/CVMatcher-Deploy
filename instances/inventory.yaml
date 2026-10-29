@@ -1,0 +1,11 @@
+# Inventaire de la flotte (lu par scripts/upgrade-fleet.ps1 et la supervision centrale).
+# Aucun secret : les identifiants restent dans instances/<fqdn>/config*.env (hors git) et dans le coffre.
+# Champs : fqdn, client, environnement (recette | production), tag déployé, anneau de mise à jour (0 = recette,
+# 1 = premiers clients, 2 = reste de la flotte), profils compose actifs.
+instances:
+  - fqdn: cvmatcher-recette.acceliance.fr
+    client: Acceliance (recette)
+    environnement: recette
+    tag: ""
+    anneau: 0
+    profils: []

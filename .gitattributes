@@ -1,0 +1,7 @@
+# Fins de ligne : LF pour tout ce qui part sur les VM Linux, CRLF pour les scripts PowerShell du poste
+* text=auto eol=lf
+*.ps1 text eol=crlf
+*.docx binary
+*.dotx binary
+*.png binary
+*.pdf binary

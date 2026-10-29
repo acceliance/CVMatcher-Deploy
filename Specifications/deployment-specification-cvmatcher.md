@@ -2,7 +2,7 @@
 
 | Élément | Valeur |
 |---|---|
-| Version du document | 0.3 (draft) — 2026-10-23 : Neo4j, SeaweedFS, Qdrant, stockage de fichiers, procédures (bascule vectorielle §4.5, rotation des secrets §4.6, runbook de restauration §4.7). 0.2 — 2026-10-22 : authentification OIDC détaillée, variables et routes MCP / A2A, secrets séparés, coûts IA |
+| Version du document | 0.4 — 2026-10-29 : kit livré (lot 4) ; images `app`, `web`, `docproc` ; scripts `upgrade-fleet`, `decommission`, `check-repo`, inventaire de flotte ; correspondance groupe IdP → rôle (`OIDC_GROUP_ROLES`). 0.3 (draft) — 2026-10-23 : Neo4j, SeaweedFS, Qdrant, stockage de fichiers, procédures (bascule vectorielle §4.5, rotation des secrets §4.6, runbook de restauration §4.7). 0.2 — 2026-10-22 : authentification OIDC détaillée, variables et routes MCP / A2A, secrets séparés, coûts IA |
 | Application | `cvmatcher` (voir `cvmatcher/Specifications/functional-specification-cvmatcher.md`, abrégé **SFG**) |
 | Modèle de référence | `hubgov-application/deployment/` (kit `ubuntu`, `raw_from_harbor`, `ubuntu_instances/<fqdn>`, licensing) |
 | Différence majeure avec HubGov | Le déploiement vit dans **un dépôt séparé** de l'application. Aucun code applicatif ici : uniquement des kits, des scripts et des fiches d'instance. |
@@ -54,7 +54,9 @@ CVMatcher-Deploy/
 │       ├── 04-apache.sh               # reverse proxy TLS → 127.0.0.1:8090
 │       ├── 05-letsencrypt.sh          # certbot + timer systemd de renouvellement
 │       ├── 06-cockpit.sh              # optionnel, restreint à ADMIN_IP
-│       ├── 07-backup.sh               # timer systemd : dump pg + /data/files, rétention
+│       ├── 07-backup.sh               # timer systemd : dump Neo4j à froid + volumes, rétention, copie externe
+│       ├── backup-run.sh / restore-run.sh  # installés en /usr/local/sbin/cvmatcher-{backup,restore}
+│       ├── lib.sh                     # fonctions communes (config.env, refus CRLF)
 │       ├── 08-stage-app.sh            # copie du kit compose dans /opt/cvmatcher
 │       ├── 09-apache-finalize.sh
 │       ├── provision.sh               # enchaîne 00 → 09
@@ -64,16 +66,21 @@ CVMatcher-Deploy/
 │   │   ├── config.env.example
 │   │   ├── config.app.env.example
 │   │   └── notes.md
+│   ├── inventory.yaml                 # flotte : fqdn, environnement, tag, anneau de mise à jour
 │   └── <fqdn>/                        # une fiche par instance client
 │       ├── notes.md                   # seul fichier versionné
 │       └── branding/                  # optionnel (thème, modèle Word de référence)
 ├── licensing/
 │   ├── README.md                      # procédure d'émission ; la clé privée n'est PAS ici
+│   ├── cvmatcher-licence.py           # keygen / pubkey / sign / verify (Ed25519, format de l'application)
 │   └── deliveries/<client>/           # ignoré par git : compose, .env.example, .lic, guide
 ├── scripts/
 │   ├── new-instance.ps1               # crée instances/<fqdn>/ depuis _template
 │   ├── deploy.ps1                     # <fqdn> -Stage kit,config,provision,app
 │   ├── upgrade.ps1                    # <fqdn> -Tag vX : sauvegarde, pull, migrations, up
+│   ├── upgrade-fleet.ps1              # -Tag vX : par anneaux de inventory.yaml (recette d'abord)
+│   ├── decommission.ps1               # <fqdn> : sauvegarde finale, arrêt, effacement
+│   ├── check-repo.ps1                 # hook pre-commit et CI : variables internes, LF, fichiers sensibles
 │   ├── backup-now.ps1 / restore.ps1
 │   ├── new-customer.ps1               # prépare licensing/deliveries/<client>/
 │   └── lib/guards.ps1                 # contrôles communs (voir §5)
@@ -81,6 +88,8 @@ CVMatcher-Deploy/
 │   ├── brand-theme.example.json
 │   ├── cv-template.example.docx       # modèle Word nu d'exemple (styles requis SFG EF-71)
 │   └── registre-traitement-rgpd.docx  # SFG EF-116
+├── .pre-commit-config.yaml            # gitleaks + scripts/check-repo.ps1
+├── .gitattributes                     # LF partout, CRLF pour *.ps1
 └── .gitignore                         # *.env, *.lic, *.pem, *.key, *secret*, deliveries/, backups/
 ```
 
@@ -91,9 +100,9 @@ CVMatcher-Deploy/
 | Service | Image | Rôle | Ports |
 |---|---|---|---|
 | `cvmatcher-web` | `harbor.acceliance.fr/cvmatcher/web:${TAG}` | nginx : SPA et edge (auth, proxy `/api`, routes agents, §3.2) | `127.0.0.1:8090` (Apache TLS devant) |
-| `cvmatcher-api` | `harbor.acceliance.fr/cvmatcher/api:${TAG}` | API FastAPI ; endpoints MCP et A2A (SFG §10.1) | interne |
+| `cvmatcher-api` | `harbor.acceliance.fr/cvmatcher/app:${TAG}` | API FastAPI ; endpoints MCP et A2A (SFG §10.1) | interne |
 | `cvmatcher-worker` | même image que l'API, commande `worker` | Jobs : extraction, IA, calculs, DOCX | interne, sortie HTTPS vers le fournisseur IA |
-| `cvmatcher-ocr` | `harbor.acceliance.fr/cvmatcher/ocr:${TAG}` (PaddleOCR via RapidOCR / ONNX Runtime, modèles embarqués ; ni Tesseract ni Ghostscript, décision du 2026-10-23) | Qualification des pages, OCR des PDF scannés, PDF interrogeable, vignettes (SFG §6.0) | interne, réseau `internal: true` **sans sortie** |
+| `cvmatcher-docproc` | `harbor.acceliance.fr/cvmatcher/docproc:${TAG}` (PaddleOCR via RapidOCR / ONNX Runtime, modèles embarqués ; ni Tesseract ni Ghostscript, décision du 2026-10-23) | Qualification des pages, OCR des PDF scannés, PDF interrogeable, vignettes (SFG §6.0) | interne, réseau `internal: true` **sans sortie** |
 | `neo4j` | `neo4j:5-community` (version figée) | Magasin canonique unique : graphe métier, état applicatif, file de tâches, audit, coûts, index vectoriel et plein texte (décision du 2026-10-23 : la persistance SQL n'est pas retenue ; `architecture-solution-cvmatcher.md` §4.4) | Bolt `127.0.0.1:7687` (tunnel SSH uniquement) ; Neo4j Browser non publié |
 | `oauth2-proxy` | `quay.io/oauth2-proxy/oauth2-proxy` (version figée) | OIDC, profil `federated` | interne |
 | `docx-preview` (V1.1) | `harbor.acceliance.fr/cvmatcher/docx-preview:${TAG}` | LibreOffice headless | interne, sans sortie réseau |
@@ -118,7 +127,9 @@ CVMatcher-Deploy/
 
 | Variable | Obligatoire | Description |
 |---|---|---|
-| `CVMATCHER_API_IMAGE`, `CVMATCHER_WEB_IMAGE`, `CVMATCHER_OCR_IMAGE`, `TAG` | Oui | Images et version (`v<commits>-<sha>`, jamais `latest` en production) |
+| `CVMATCHER_IMAGE_PREFIX`, `TAG` | Oui | Registre (`harbor.acceliance.fr/cvmatcher`, images `app`, `web`, `docproc`) et version (`v<commits>-<sha>`, jamais `latest` en production) |
+| `INSTANCE_FQDN` | Oui | FQDN de l'instance (contrôles de licence et d'agents) |
+| `HARBOR_PULL_USER` | Oui | Robot `deploy-pull` de l'instance ; son mot de passe vient du coffre par `HARBOR_PULL_SECRET` au moment du déploiement, jamais écrit sur la VM |
 | `PUBLIC_URL` | Oui | `https://<fqdn>` : contrôlé contre la licence (SFG §11.3) |
 | `NEO4J_PASSWORD` | Oui | Généré par `new-instance.ps1` (remplace `POSTGRES_PASSWORD`) |
 | `SESSION_SECRET` | Oui | Signature des cookies de session ; généré, jamais réutilisé entre instances |
@@ -130,6 +141,7 @@ CVMatcher-Deploy/
 | `OAUTH2_OIDC_ISSUER_URL` | Si `office365` | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
 | `OAUTH2_REDIRECT_URL` | Si OIDC | `https://<fqdn>/oauth2/callback`, à déclarer à l'identique dans l'IdP |
 | `OAUTH2_ALLOWED_DOMAINS` | Si OIDC | Domaines de mail autorisés (ceux de la société de recrutement) ; jamais `*` en production |
+| `OIDC_GROUP_ROLES` | Non | Correspondance optionnelle groupe de l'IdP → rôle (`groupe=rôle;groupe=rôle`, SFG NF-17, Q22) : compte créé au premier accès, rôle aligné sur l'annuaire, compte désactivé quand plus aucun groupe ne correspond ; quotas de la licence appliqués. Vide : les comptes sont créés dans l'application |
 | `AUTH_COOKIE_SECURE`, `AUTH_SESSION_TTL_SECONDS` | Non | Défauts : `true` et `28800` |
 | `WORKER_CONCURRENCY` | Non | Défaut : 4 (SFG NF-04) |
 | `UPLOAD_MAX_MB`, `UPLOAD_MAX_FILES` | Non | Défauts : 10 et 200 |
@@ -150,7 +162,8 @@ CVMatcher-Deploy/
 | `THEME_ASSET_HOSTS` | Non | Hôtes externes dont le thème peut faire charger logos, polices et images par le navigateur des utilisateurs (SFG EF-147), comme dans HubGov et Graph-Rag : `cdn.example.com`, `*.example.com`, `*` ; **vide par défaut = aucun hôte externe**, seuls `/files/brand/…` et `data:` passent. Passée à `cvmatcher-api`, `cvmatcher-worker` et `cvmatcher-web` ; l'edge en dérive la CSP au démarrage, donc **recréer les conteneurs** après modification |
 | `FILE_STORE` | Non | `local` (défaut : volume `cvm-files`, `/data/files`, adressage par hash) \| `s3` (SFG EF-190). La migration entre les deux est une tâche de maintenance lancée par `upgrade.ps1 <fqdn> -FileStore s3` |
 | `S3_ENDPOINT`, `S3_BUCKET`, `S3_REGION`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | Si `s3` | Deux cibles possibles : **object storage de l'hébergeur en Union européenne** (OVHcloud, Scaleway, Outscale ; chiffrement côté serveur, versioning du bucket, un bucket par instance, identifiants limités au bucket), ou **SeaweedFS local** (`S3_ENDPOINT=http://seaweedfs:8333`, profil `files-seaweedfs`, identifiants tirés du secret `seaweedfs-s3.json`). `new-instance.ps1 -FileStore s3 -S3Target hosting\|seaweedfs` pré-remplit le bloc |
-| `S3_FORCE_PATH_STYLE` | Si `s3` | `true` pour SeaweedFS et la plupart des S3 auto-hébergés, `false` pour les fournisseurs à adressage par sous-domaine |
+| `S3_FORCE_PATH_STYLE` | Si `s3` | Non repris : l'adaptateur `s3` adresse toujours par chemin (`<endpoint>/<bucket>/<clé>`), accepté par SeaweedFS et par les object storages UE cités |
+| `THEME_EXTRACTION_ALLOWED` | Non | Défaut `true` ; `false` si l'instance interdit les sorties réseau : l'assistant d'extraction du thème est indisponible (SFG EF-145) |
 | `FILE_QUOTA_GB` | Non | Quota de stockage de l'instance (alerte à 80 %, SFG EF-198) ; défaut selon le profil (§8) |
 | `VECTOR_BACKEND` | Non | `neo4j` (défaut) \| `qdrant`. `qdrant` exige le profil compose `vectors-qdrant` et `QDRANT_API_KEY` ; la bascule se fait par `upgrade.ps1 <fqdn> -VectorBackend qdrant`, qui active le profil puis lance la tâche de recalcul des embeddings (quelques minutes, sans appel IA) |
 | `QDRANT_API_KEY` | Si `qdrant` | Généré par `new-instance.ps1` quand le profil est demandé |
@@ -224,7 +237,7 @@ flowchart LR
 | Étape | Commande / action | Résultat |
 |---|---|---|
 | 1 | `scripts/new-customer.ps1 <client> -Domain <fqdn> -Expires <date> -Seats administrator=2,steward=1,recruiter=10,business_manager=5,visitor=-1 [-Features mcp,a2a[,mcp.write]]` | Licence signée en Ed25519 (fonctionnalités MCP / A2A incluses si vendues, SFG §11.3) et paquet de livraison dans `licensing/deliveries/<client>/` (hors git) |
-| 2 | `scripts/new-instance.ps1 <fqdn> -AdminIp <ip> -CustomerIps <ip,…> -AuthMode standalone\|office365\|google [-OidcTenant <id>] [-AllowedDomains <d1,d2>]` | `instances/<fqdn>/` créé : `config*.env` avec secrets aléatoires (`POSTGRES_PASSWORD`, `SESSION_SECRET`, `DATA_ENCRYPTION_KEY`, `OAUTH2_COOKIE_SECRET`), variables OIDC pré-remplies selon le mode, `MCP_ALLOWED_HOSTS` et `A2A_PUBLIC_URL` dérivés du FQDN, `notes.md` initialisé |
+| 2 | `scripts/new-instance.ps1 <fqdn> -AdminIp <ip> -CustomerIps <ip,…> -AuthMode standalone\|office365\|google [-OidcTenant <id>] [-AllowedDomains <d1,d2>]` | `instances/<fqdn>/` créé : `config*.env` avec secrets aléatoires (`NEO4J_PASSWORD`, `SESSION_SECRET`, `DATA_ENCRYPTION_KEY`, `OAUTH2_COOKIE_SECRET`), variables OIDC pré-remplies selon le mode, `MCP_ALLOWED_HOSTS` et `A2A_PUBLIC_URL` dérivés du FQDN, `notes.md` initialisé |
 | 3 | DNS ; **si OIDC**, enregistrement de l'application chez le client | Enregistrement A/AAAA du FQDN vers la VM. En `office365` : application Entra ID du tenant client, URI de redirection `https://<fqdn>/oauth2/callback`, secret client reporté dans `config.app.env`. En `google` : client OAuth Google Workspace, même URI |
 | 4 | `scripts/deploy.ps1 <fqdn> -Stage kit,config,provision,app` | Kit copié en scp vers `/opt/cvmatcher-kit`, provisioning de l'hôte, stack démarrée et saine |
 | 5 | Navigateur sur `https://<fqdn>` | Écran de bootstrap : création du premier `administrator` (SFG EF-01) ; en mode OIDC, à partir de l'identité fédérée du premier connecté (SFG NF-17) |
