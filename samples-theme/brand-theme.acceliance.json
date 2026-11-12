@@ -1,0 +1,141 @@
+{
+  "$schema": "../schemas/brand-theme.schema.json",
+  "meta": {
+    "client": "Acceliance",
+    "themeVersion": "1.0",
+    "updatedAt": "2026-11-04T10:00:00Z",
+    "source": {
+      "method": "BRAND_GUIDELINES",
+      "notes": "Charte Acceliance : bleu #0097b6, clair #cceaf0, gris #b0aea5 / #e8e6dc, accents violet #b60097, vert #97b600, bleu #003cb6, vert d'eau #00b67a, rouge #b61f00 ; titres Poppins, texte Lora. Le bleu #0097b6 sous un texte blanc n'atteint que 3,4:1 : les boutons et en-têtes de tableaux utilisent #00809b (4,6:1, WCAG AA), le bleu de charte reste sur les dégradés, le focus et les graphiques. Le vert d'eau #00b67a est assombri en #008a5c pour le texte de succès. Logos et polices chargés directement depuis leurs hôtes d'origine : THEME_ASSET_HOSTS=www.acceliance.fr,fonts.googleapis.com,fonts.gstatic.com."
+    }
+  },
+  "brand": {
+    "name": "Acceliance",
+    "eyebrow": "CV Matcher",
+    "tagline": "Accélérateurs d'intelligence",
+    "website": "https://www.acceliance.fr/",
+    "logo": {
+      "mark": "https://www.acceliance.fr/media/wdxp1zys/logo-acc-seul-400.png",
+      "favicon": "https://www.acceliance.fr/media/rdchpdwu/logo-acc-seul-64.png",
+      "document": "https://www.acceliance.fr/media/wdxp1zys/logo-acc-seul-400.png"
+    }
+  },
+  "colors": {
+    "background": "#f4f9fa",
+    "surface": "#ffffff",
+    "surfaceAlt": "#e6f4f7",
+    "text": "#1d2b33",
+    "textMuted": "#5b6b73",
+    "line": "#cceaf0",
+    "primary": "#00809b",
+    "primaryAlt": "#0097b6",
+    "onPrimary": "#ffffff",
+    "secondary": "#b60097",
+    "focus": "#0097b6",
+    "info": "#003cb6",
+    "success": "#008a5c",
+    "warning": "#b26b00",
+    "danger": "#b61f00"
+  },
+  "colorsDark": {
+    "background": "#0f1a1e",
+    "surface": "#16252b",
+    "surfaceAlt": "#1d3038",
+    "text": "#e6f4f7",
+    "textMuted": "#9fb7bf",
+    "line": "#2a3d44",
+    "primary": "#4cc3dc",
+    "primaryAlt": "#0097b6",
+    "onPrimary": "#0f1a1e",
+    "secondary": "#e06cc8",
+    "focus": "#4cc3dc"
+  },
+  "typography": {
+    "heading": {
+      "family": "Poppins",
+      "fallback": "Arial, sans-serif",
+      "weights": [
+        500,
+        600,
+        700
+      ],
+      "url": "https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700&display=swap"
+    },
+    "body": {
+      "family": "Lora",
+      "fallback": "Georgia, serif",
+      "weights": [
+        400,
+        600
+      ],
+      "url": "https://fonts.googleapis.com/css2?family=Lora:wght@400;600&display=swap"
+    },
+    "baseSize": "16px"
+  },
+  "shape": {
+    "radius": "8px",
+    "density": "STANDARD"
+  },
+  "appreciation": {
+    "EXPERTISE_CONFIRMEE": {
+      "background": "#b60097",
+      "text": "#ffffff"
+    },
+    "TRES_BON_NIVEAU": {
+      "background": "#97b600",
+      "text": "#1b2433"
+    },
+    "INTERMEDIAIRE": {
+      "background": "#003cb6",
+      "text": "#ffffff"
+    },
+    "COMPETENCE_NON_DEMONTREE": {
+      "background": "#b61f00",
+      "text": "#ffffff"
+    }
+  },
+  "impact": {
+    "FORT": {
+      "background": "#b61f00",
+      "text": "#ffffff"
+    },
+    "MOYEN": {
+      "background": "#f2a900",
+      "text": "#1b2433"
+    },
+    "FAIBLE": {
+      "background": "#b0aea5",
+      "text": "#1b2433"
+    }
+  },
+  "charts": {
+    "series": [
+      "#0097b6",
+      "#b60097",
+      "#97b600",
+      "#003cb6",
+      "#00b67a",
+      "#b61f00"
+    ],
+    "grid": "#e8e6dc",
+    "gaugeTrack": "#cceaf0"
+  },
+  "documents": {
+    "headingColor": "#00809b",
+    "accentColor": "#b60097",
+    "tableHeaderBackground": "#00809b",
+    "tableHeaderText": "#ffffff",
+    "tableBorder": "#cceaf0",
+    "tableStripe": "#f4f9fa",
+    "fonts": {
+      "heading": {
+        "family": "Poppins",
+        "fallback": "Arial"
+      },
+      "body": {
+        "family": "Lora",
+        "fallback": "Georgia"
+      }
+    }
+  }
+}

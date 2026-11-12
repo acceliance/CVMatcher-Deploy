@@ -1,0 +1,47 @@
+{
+  "$commentaire": "Charte FICTIVE d'exemple. Nexora Conseil n'existe pas : nom, adresse, contact et logo sont inventés.",
+  "slug": "nexora-conseil",
+  "societe": {
+    "nom": "Nexora Conseil",
+    "type": "ESN",
+    "slogan": "Ingénierie du numérique, au plus près de vos projets",
+    "site": "https://www.nexora-conseil.example",
+    "adresse": ["18 quai des Célestins", "69002 Lyon"],
+    "contact": {
+      "nom": "Camille Durand",
+      "fonction": "Responsable des offres",
+      "email": "offres@nexora-conseil.example",
+      "telephone": "04 65 71 12 34"
+    }
+  },
+  "logo": {
+    "fichier": "logo.png",
+    "marque": "logo-seul.png"
+  },
+  "polices": {
+    "titres": "Century Gothic",
+    "texte": "Calibri"
+  },
+  "couleurs": {
+    "primaire": "#0B4F7C",
+    "secondaire": "#C2410C",
+    "tertiaire": "#F59E0B",
+    "texte": "#1C2630",
+    "texteSecondaire": "#5B6773",
+    "fondClair": "#EAF2F8",
+    "bordure": "#C5D3DE",
+    "zebrure": "#F3F7FA"
+  },
+  "niveaux": {
+    "EXPERTISE_CONFIRMEE": "#0B4F7C",
+    "TRES_BON_NIVEAU": "#2E7D32",
+    "INTERMEDIAIRE": "#C2410C",
+    "COMPETENCE_NON_DEMONTREE": "#9F1239"
+  },
+  "palette": {},
+  "source": {
+    "methode": "FICTIF",
+    "url": "https://www.nexora-conseil.example",
+    "notes": "Bleu pétrole #0B4F7C (titres, en-têtes de tableaux), orange brûlé #C2410C (postes, sous-titres), ambre #F59E0B réservé aux filets : son contraste sur blanc (2,1:1) ne permet pas de l'utiliser pour du texte."
+  }
+}

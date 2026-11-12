@@ -1,0 +1,22 @@
+# Secrets et artefacts d'instance : jamais versionnés (spec §7)
+*.env
+!*.env.example
+*.lic
+*.pem
+*.key
+*secret*
+!**/*secret*.example
+seaweedfs-s3.json
+instances/*/docker-compose.override.yaml
+# Journal d'instance : propre à chaque installation (contacts, hébergement, historique), jamais versionné dans ce
+# dépôt public. Seuls le gabarit et l'exemple fictif le sont.
+instances/*/notes.md
+!instances/_template/notes.md
+licensing/deliveries/
+backups/
+instances/*/branding/*.docx
+instances/*/branding/*.dotx
+__pycache__/
+*.pyc
+.vscode/
+.idea/

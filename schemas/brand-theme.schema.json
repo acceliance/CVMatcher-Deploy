@@ -1,0 +1,386 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cvmatcher.acceliance.fr/schemas/brand-theme.schema.json",
+  "title": "Web and document brand theme (CV Matcher)",
+  "description": "Reconfigurable brand theme of a CV Matcher instance (one recruitment company per instance, SFG §11.1). It describes the fields actually used by the application: brand identity (name, eyebrow, logos), the UI colour palette (translated into CSS variables), optional dark palette, typography, shapes, the business colours of the scoring (appreciation levels, impact levels, radar), the styling of the generated Word documents (CV WF-06 and scoring report WF-07) and free-form CSS variable overrides. The front end applies these tokens at runtime: ThemeProvider (CSS variables, title, favicon), RootLayout (logo, name, eyebrow) and the brand theme admin screen; the DOCX renderer applies the `documents`, `appreciation`, `impact` and `charts` sections. The document is validated on upload (PUT /files/brand-theme, EF-100). It is written by hand, possibly from the customer's public website or brand book, in which case `meta.source` records the origin. Absent a brand theme, or for any absent optional key, the application keeps its default tokens.",
+  "type": "object",
+  "required": ["meta", "brand", "colors"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this schema (autocompletion / validation in editors)."
+    },
+
+    "meta": {
+      "type": "object",
+      "description": "Brand theme metadata.",
+      "required": ["client"],
+      "additionalProperties": false,
+      "properties": {
+        "client": {
+          "type": "string",
+          "description": "Customer / organisation name (the recruitment company). Displayed on the brand theme admin screen.",
+          "minLength": 1,
+          "examples": ["Acceliance", "BankAssu"]
+        },
+        "themeVersion": {
+          "type": "string",
+          "description": "Free version label of this theme, incremented by the administrator at each published change.",
+          "examples": ["1.0", "2026-10-22"]
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date of the last change of this theme (ISO 8601)."
+        },
+        "source": { "$ref": "#/$defs/source" }
+      }
+    },
+
+    "brand": {
+      "type": "object",
+      "description": "Brand identity: name, eyebrow, tagline, logos.",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Displayed brand / product name. Becomes the document title (browser tab) and the header name. Website extraction: `og:site_name`, then `<title>` without its suffix.",
+          "minLength": 1,
+          "examples": ["Acceliance", "BankAssu CV Matcher"]
+        },
+        "eyebrow": {
+          "type": "string",
+          "description": "Small-caps kicker displayed in the header above the name.",
+          "examples": ["CV Matcher"]
+        },
+        "tagline": {
+          "type": "string",
+          "description": "Short brand baseline, shown on the login screen and on the cover page of the scoring report (WF-07). Website extraction: `meta[name=description]` or the hero heading, to be shortened by the administrator.",
+          "maxLength": 160
+        },
+        "website": {
+          "type": "string",
+          "format": "uri",
+          "description": "Public website of the recruitment company, printed in the document footers when the Word template does not already carry it."
+        },
+        "logo": {
+          "type": "object",
+          "description": "Logo file references: path of an uploaded asset (`/files/brand/...`), https URL or `data:` URI. SVG is preferred for the web, PNG at 300 dpi for Word documents.",
+          "additionalProperties": false,
+          "properties": {
+            "primary": {
+              "$ref": "#/$defs/asset",
+              "description": "Primary logo (horizontal / full), for light backgrounds. Used as the header fallback when `brand.logo.mark` is absent. Website extraction: `<header>` image or inline SVG linked to the home page."
+            },
+            "primaryOnDark": {
+              "$ref": "#/$defs/asset",
+              "description": "Primary logo variant for dark backgrounds (dark mode, coloured banners). Website extraction: footer logo when it differs from the header logo."
+            },
+            "mark": {
+              "$ref": "#/$defs/asset",
+              "description": "Reduced logo / monogram used in the header (takes priority over `primary`). Website extraction: `apple-touch-icon` or the largest square icon."
+            },
+            "favicon": {
+              "$ref": "#/$defs/asset",
+              "description": "Site favicon (ICO/PNG/SVG), applied at runtime without redeployment. Website extraction: `link[rel~=icon]`."
+            },
+            "document": {
+              "$ref": "#/$defs/asset",
+              "description": "Logo inserted by the DOCX renderer when the Word template has no header logo (cover page of the scoring report, CV). PNG or JPEG, at least 600 px wide; SVG is not accepted by every Word version."
+            }
+          }
+        }
+      }
+    },
+
+    "colors": {
+      "$ref": "#/$defs/palette",
+      "description": "Functional UI palette, light mode. Each key is translated by the application into a CSS variable (custom property). `background`, `surface`, `text` and `primary` are required; absent keys keep the application's default token. Website extraction: CSS custom properties of `:root`, `meta[name=theme-color]`, then the most frequent colours of buttons, links, header and body.",
+      "required": ["background", "surface", "text", "primary"]
+    },
+
+    "colorsDark": {
+      "$ref": "#/$defs/palette",
+      "description": "Optional dark-mode palette, applied when the user's system or preference is dark. Absent: the application derives a dark palette from `colors` and its default dark tokens. Website extraction: rules under `@media (prefers-color-scheme: dark)` when the site provides them."
+    },
+
+    "typography": {
+      "type": "object",
+      "description": "Fonts of the web interface. Website extraction: computed `font-family` of headings (h1–h3) and body, and font files referenced by `@font-face` or by a Google Fonts / Adobe Fonts link. Only fonts whose licence allows web use by the customer may be referenced.",
+      "additionalProperties": false,
+      "properties": {
+        "heading": { "$ref": "#/$defs/font", "description": "Font of titles and headings." },
+        "body": { "$ref": "#/$defs/font", "description": "Font of body text, forms and tables." },
+        "mono": { "$ref": "#/$defs/font", "description": "Monospaced font (identifiers, JSON preview)." },
+        "baseSize": {
+          "type": "string",
+          "description": "Root font size (CSS length).",
+          "pattern": "^[0-9]+(\\.[0-9]+)?(px|rem)$",
+          "default": "16px",
+          "examples": ["16px", "15px"]
+        }
+      }
+    },
+
+    "shape": {
+      "type": "object",
+      "description": "Shape tokens of the interface.",
+      "additionalProperties": false,
+      "properties": {
+        "radius": {
+          "type": "string",
+          "description": "Corner radius of cards, buttons and fields (CSS length, → --radius). Website extraction: `border-radius` of the main buttons.",
+          "pattern": "^[0-9]+(\\.[0-9]+)?(px|rem)$",
+          "examples": ["4px", "8px", "0.75rem"]
+        },
+        "density": {
+          "type": "string",
+          "enum": ["COMPACT", "STANDARD", "COMFORTABLE"],
+          "default": "STANDARD",
+          "description": "Spacing density of lists and tables."
+        }
+      }
+    },
+
+    "appreciation": {
+      "type": "object",
+      "description": "Colours of the `AppreciationCompetence` levels, used on the scoring screens, in the radar and in the scoring report (EF-54, EF-101, EF-134). Keys are the enumeration literals. Defaults: purple, green, blue, red. These colours are business codes: they are not extracted from the website and must stay distinct from one another; each colour is always paired with its label.",
+      "additionalProperties": false,
+      "properties": {
+        "EXPERTISE_CONFIRMEE": { "$ref": "#/$defs/statusColor", "description": "Note ≥ 4.5 — « Expertise confirmée » (default purple)." },
+        "TRES_BON_NIVEAU": { "$ref": "#/$defs/statusColor", "description": "Note ≥ 4.0 — « Très bon niveau » (default green)." },
+        "INTERMEDIAIRE": { "$ref": "#/$defs/statusColor", "description": "Note ≥ 3.0 — « Intermédiaire » (default blue)." },
+        "COMPETENCE_NON_DEMONTREE": { "$ref": "#/$defs/statusColor", "description": "Note < 3.0 — « Compétence non démontrée » (default red)." }
+      }
+    },
+
+    "impact": {
+      "type": "object",
+      "description": "Colours of the `NiveauImpact` levels of the weaknesses (`SyntheseFaiblesse.niveauImpact`), on screen and in the scoring report (EF-134). Keys are the enumeration literals. Not extracted from the website.",
+      "additionalProperties": false,
+      "properties": {
+        "FORT": { "$ref": "#/$defs/statusColor", "description": "High risk (default red)." },
+        "MOYEN": { "$ref": "#/$defs/statusColor", "description": "Medium risk (default amber)." },
+        "FAIBLE": { "$ref": "#/$defs/statusColor", "description": "Low risk (default grey-blue)." }
+      }
+    },
+
+    "charts": {
+      "type": "object",
+      "description": "Chart styling (skills radar, gauges, cost dashboard), on screen and in the DOCX documents.",
+      "additionalProperties": false,
+      "properties": {
+        "series": {
+          "type": "array",
+          "description": "Ordered categorical palette for chart series (first = candidate on the radar, second = comparison or job profile...). Website extraction: brand colours, then generated tints.",
+          "items": { "$ref": "#/$defs/color" },
+          "minItems": 1,
+          "maxItems": 12
+        },
+        "grid": { "$ref": "#/$defs/color", "description": "Grid and axis lines." },
+        "labels": { "$ref": "#/$defs/color", "description": "Axis labels of the radar (default: `colors.text`)." },
+        "radarFill": { "$ref": "#/$defs/color", "description": "Fill of the radar area (default: first series colour)." },
+        "radarFillOpacity": { "type": "number", "minimum": 0, "maximum": 1, "description": "Opacity of the radar area fill (default 0.25)." },
+        "gaugeTrack": { "$ref": "#/$defs/color", "description": "Background track of the global score gauge." },
+        "gaugeFill": { "$ref": "#/$defs/color", "description": "Filled arc of the gauge (default: first series colour)." },
+        "gaugeText": { "$ref": "#/$defs/color", "description": "Score and percentage written in the gauge (default: `colors.text`)." }
+      }
+    },
+
+    "documents": {
+      "type": "object",
+      "description": "Styling of the Word documents generated by the application: CV (WF-06) and scoring report (WF-07). The Word template (§11.2) carries the header, footer and named styles; this section only drives what the renderer draws dynamically (titles colour, tables, badges, radar). Absent keys fall back to `colors`. A template can override every colour of this theme used by the documents with custom document properties named `cvm.<path>` (e.g. `cvm.documents.tableHeaderBackground`, `cvm.appreciation.INTERMEDIAIRE.background`, `cvm.charts.series`); the template palette wins over the instance theme.",
+      "additionalProperties": false,
+      "properties": {
+        "headingColor": { "$ref": "#/$defs/color", "description": "Colour of the titles drawn by the renderer when the template style has no colour." },
+        "accentColor": { "$ref": "#/$defs/color", "description": "Accent colour: separators, key-skill highlights, gauge." },
+        "keywordColor": { "$ref": "#/$defs/color", "description": "Colour of the key skills written in bold (CV, EF-79). Absent: colour of the paragraph style." },
+        "scoreText": { "$ref": "#/$defs/color", "description": "Colour of the global score line of the scoring report." },
+        "scoreBackground": { "$ref": "#/$defs/color", "description": "Background of the global score line; when set, the line is centred and enlarged as a banner." },
+        "appreciationStyle": { "type": "string", "enum": ["FOND", "TEXTE"], "default": "FOND", "description": "How the appreciation colours are applied in the report tables: `FOND` fills the cell (with `text` on it), `TEXTE` writes the label and the score in bold in the level colour, without fill." },
+        "impactStyle": { "type": "string", "enum": ["FOND", "TEXTE"], "default": "FOND", "description": "Same as `appreciationStyle` for the impact levels of the weaknesses." },
+        "tableHeaderBackground": { "$ref": "#/$defs/color", "description": "Background of table header rows (indicators table, comparative summary)." },
+        "tableHeaderText": { "$ref": "#/$defs/color", "description": "Text of table header rows." },
+        "tableBorder": { "$ref": "#/$defs/color", "description": "Table borders." },
+        "tableStripe": { "$ref": "#/$defs/color", "description": "Background of alternate table rows." },
+        "roles": {
+          "type": "object",
+          "description": "Text colour per renderer role (`section`, `exp_title`, `details`, `body`, `presentation`, `bullet`, `skills_heading`, `skills`, `formation`, `langues`, `caption`), applied over the colour of the template style. Absent: the style colour.",
+          "propertyNames": { "enum": ["section", "exp_title", "details", "body", "presentation", "bullet", "skills_heading", "skills", "formation", "langues", "caption"] },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": { "color": { "$ref": "#/$defs/color" } }
+          }
+        },
+        "tables": {
+          "type": "object",
+          "description": "Per-table overrides of the header and stripe colours of the scoring report; absent keys fall back to the common `table*` keys.",
+          "additionalProperties": false,
+          "properties": {
+            "indicateurs": { "$ref": "#/$defs/tableColors" },
+            "radar": { "$ref": "#/$defs/tableColors" },
+            "forces": { "$ref": "#/$defs/tableColors" },
+            "faiblesses": { "$ref": "#/$defs/tableColors" },
+            "methode": { "$ref": "#/$defs/tableColors" },
+            "comparatif": { "$ref": "#/$defs/tableColors" }
+          }
+        },
+        "fonts": {
+          "type": "object",
+          "description": "Fonts used by the renderer when the template style does not set one. They must be installed with Microsoft Office or embedded in the template: web fonts extracted from a website often are not, hence the mandatory `fallback`.",
+          "additionalProperties": false,
+          "properties": {
+            "heading": { "$ref": "#/$defs/documentFont" },
+            "body": { "$ref": "#/$defs/documentFont" }
+          }
+        }
+      }
+    },
+
+    "cssVariables": {
+      "type": "object",
+      "description": "CSS variable overrides applied as-is (key = variable name without the -- prefix, value = CSS value). Overlays and extends the `colors` palette; the most direct way to adjust any application token.",
+      "propertyNames": { "pattern": "^[a-zA-Z][a-zA-Z0-9-]*$" },
+      "additionalProperties": { "type": "string" }
+    }
+  },
+
+  "$defs": {
+    "color": {
+      "type": "string",
+      "description": "Colour in CSS format: hexadecimal (#rgb, #rgba, #rrggbb, #rrggbbaa) or an rgb()/rgba()/hsl()/hsla() function.",
+      "pattern": "^(#([0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|rgba?\\([^)]*\\)|hsla?\\([^)]*\\))$",
+      "examples": ["#0097b6", "#cceaf0", "rgba(0,151,182,.08)"]
+    },
+
+    "palette": {
+      "type": "object",
+      "description": "Functional palette translated into CSS variables. Text colours must reach a WCAG 2.1 AA contrast of 4.5:1 on the background they are used on (checked by the admin screen, EF-143).",
+      "additionalProperties": false,
+      "properties": {
+        "background": { "$ref": "#/$defs/color", "description": "General page background (→ --bg)." },
+        "surface": { "$ref": "#/$defs/color", "description": "Cards / panels, foreground (→ --surface)." },
+        "surfaceAlt": { "$ref": "#/$defs/color", "description": "Alternate surface, sections / hover states (→ --surface-alt)." },
+        "text": { "$ref": "#/$defs/color", "description": "Main text / ink colour (→ --ink)." },
+        "textMuted": { "$ref": "#/$defs/color", "description": "Secondary / muted text (→ --muted)." },
+        "line": { "$ref": "#/$defs/color", "description": "Borders and separators (→ --line)." },
+        "primary": { "$ref": "#/$defs/color", "description": "Primary brand colour, buttons / accents (→ --blue)." },
+        "primaryAlt": { "$ref": "#/$defs/color", "description": "Primary variant, gradients / hover (→ --blue-2)." },
+        "onPrimary": { "$ref": "#/$defs/color", "description": "Text / icon placed on a primary-coloured background (→ --on-primary)." },
+        "secondary": { "$ref": "#/$defs/color", "description": "Secondary brand colour, highlights / tags (→ --secondary)." },
+        "focus": { "$ref": "#/$defs/color", "description": "Keyboard focus ring (→ --focus). Defaults to `primary`." },
+        "info": { "$ref": "#/$defs/color", "description": "Information / neutral notices (→ --info)." },
+        "success": { "$ref": "#/$defs/color", "description": "Success / validated / compliant (→ --green)." },
+        "warning": { "$ref": "#/$defs/color", "description": "Warning / to review, e.g. « Mail à renseigner », low OCR quality (→ --amber)." },
+        "danger": { "$ref": "#/$defs/color", "description": "Error / rejected / risk (→ --red)." }
+      }
+    },
+
+    "tableColors": {
+      "type": "object",
+      "description": "Header and stripe colours of one report table.",
+      "additionalProperties": false,
+      "properties": {
+        "headerBackground": { "$ref": "#/$defs/color" },
+        "headerText": { "$ref": "#/$defs/color" },
+        "stripe": { "$ref": "#/$defs/color" }
+      }
+    },
+
+    "statusColor": {
+      "type": "object",
+      "description": "Colour pair of a business status: badge or table cell background, and the text written on it (contrast 4.5:1).",
+      "required": ["background"],
+      "additionalProperties": false,
+      "properties": {
+        "background": { "$ref": "#/$defs/color", "description": "Fill colour of the badge, cell or radar area." },
+        "text": { "$ref": "#/$defs/color", "description": "Text colour on that fill. Absent: black or white, whichever gives the best contrast." }
+      }
+    },
+
+    "font": {
+      "type": "object",
+      "description": "Web font. `family` is the CSS family name; `fallback` the generic stack used while loading or if loading fails.",
+      "required": ["family"],
+      "additionalProperties": false,
+      "properties": {
+        "family": { "type": "string", "minLength": 1, "examples": ["Montserrat", "Source Sans 3"] },
+        "fallback": { "type": "string", "default": "system-ui, sans-serif", "examples": ["Arial, sans-serif", "Georgia, serif"] },
+        "weights": {
+          "type": "array",
+          "items": { "type": "integer", "minimum": 100, "maximum": 900, "multipleOf": 100 },
+          "uniqueItems": true,
+          "examples": [[400, 600, 700]]
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Stylesheet or font file to load (Google Fonts / Adobe Fonts CSS URL, or uploaded asset). Absent: the font is expected to be installed on the user's workstation."
+        }
+      }
+    },
+
+    "documentFont": {
+      "type": "object",
+      "description": "Font of the generated Word documents.",
+      "required": ["family", "fallback"],
+      "additionalProperties": false,
+      "properties": {
+        "family": { "type": "string", "minLength": 1, "examples": ["Montserrat", "Calibri"] },
+        "fallback": { "type": "string", "minLength": 1, "description": "Font installed with Microsoft Office used when `family` is not available on the reader's workstation.", "examples": ["Calibri", "Arial", "Cambria"] }
+      }
+    },
+
+    "asset": {
+      "type": "string",
+      "description": "Asset reference: path of a file uploaded to the instance (`/files/brand/...`), https URL or `data:image/...` URI. An https URL is loaded directly from the customer's website by each user's browser: its host must be listed in the deployment variable `THEME_ASSET_HOSTS`, otherwise the reference is refused on upload and removed on read. Prefer the website's own files (header logo, `og:image`, `link[rel~=icon]`) over copies, so that a logo change on the site is picked up without republishing the theme; upload the file to the instance when the theme must not depend on the site's availability.",
+      "pattern": "^(/files/|https://|data:image/)",
+      "examples": ["https://www.acceliance.fr/media/wdxp1zys/logo-acc-seul-400.png", "/files/brand/logo.svg", "data:image/png;base64,iVBORw0KGgo..."]
+    },
+
+    "source": {
+      "type": "object",
+      "description": "Origin of the theme, so that the administrator knows which values were taken from the customer's website or brand book and who reviewed them (EF-142). CVMatcher does not generate themes: the source is filled in by whoever writes the theme.",
+      "required": ["method"],
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "type": "string",
+          "enum": ["MANUAL", "WEBSITE_EXTRACTION", "BRAND_GUIDELINES"],
+          "description": "MANUAL: written by hand. WEBSITE_EXTRACTION: taken from the public website `url`. BRAND_GUIDELINES: transcribed from the customer's brand book."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Website page(s) used for the extraction (home page by default)."
+        },
+        "extractedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Date of the extraction (ISO 8601)."
+        },
+        "extractor": {
+          "type": "string",
+          "description": "Name and version of the extraction tool.",
+          "examples": ["cvmatcher-brand-extractor 1.0"]
+        },
+        "reviewedBy": {
+          "type": "string",
+          "description": "Administrator who reviewed and published the generated theme."
+        },
+        "confidence": {
+          "type": "object",
+          "description": "Extraction confidence (0 to 1) per top-level section (`colors`, `logo`, `typography`...). Below 0.6, the admin screen flags the section for review.",
+          "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "notes": {
+          "type": "string",
+          "description": "Free notes of the extraction (values not found, choices made)."
+        }
+      }
+    }
+  }
+}
